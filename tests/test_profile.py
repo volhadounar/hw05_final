@@ -12,7 +12,6 @@ def get_field_context(context, field_type):
 
 
 class TestProfileView:
-
     @pytest.mark.django_db(transaction=True)
     def test_profile_view_get(self, client, post_with_group):
         try:
