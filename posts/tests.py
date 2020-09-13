@@ -1,12 +1,17 @@
-from django.test import TestCase, Client
-from .models import Post, Group, Comment
-from django.contrib.auth import get_user_model
-from django.urls import reverse
-from django.shortcuts import get_object_or_404
+from io import BytesIO
+
+from PIL import Image
+
 from django.conf import settings
-from .forms import CommentForm
-from time import sleep
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.files.base import File
+from django.test import Client, TestCase
+from django.urls import reverse
+
+from .forms import CommentForm
+from .models import Follow, Group, Post
+
 
 User = get_user_model()
 
@@ -34,7 +39,7 @@ class TestStringMethods(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def check_param(self, url, args, user, my_text):
-        post = get_object_or_404(Post, text=my_text)
+        post = Post.objects.get(text=my_text)
         self.assertEqual(post.author, user)
         self.assertEqual(post.group, self.group)
         response = self.client.get(url, kwargs_view=args)
@@ -70,7 +75,7 @@ class TestStringMethods(TestCase):
                              (settings.LOGIN_URL, url_new))
 
     def get_dict_of_urls(self, user, my_text):
-        post = get_object_or_404(Post, text=my_text, author=user)
+        post = Post.objects.get(text=my_text, author=user)
         url_main = reverse('index')
         kwargs_edit = {'username': user.username, 'post_id': post.id}
         url_edit = reverse('post_edit', kwargs=kwargs_edit)
@@ -79,7 +84,7 @@ class TestStringMethods(TestCase):
         return {url_main: '', url_view: kwargs_view, url_edit: kwargs_edit}
 
     def get_list_of_urls_for_img(self, user, my_text, gr_slug):
-        post = get_object_or_404(Post, text=my_text, author=user)
+        post = Post.objects.get(text=my_text, author=user)
         url_main = reverse('index')
         url_gr = reverse('group_posts', kwargs={'slug': gr_slug})
         url_view = reverse('post', kwargs={'username': user.username,
@@ -123,15 +128,24 @@ class TestStringMethods(TestCase):
         response = self.client.get('/unknown_page/')
         self.assertEqual(response.status_code, 404)
 
+    def get_image_file(self, name='test.png', ext='png', size=(50, 50),
+                       color=(256, 0, 0)):
+        file_obj = BytesIO()
+        image = Image.new("RGBA", size=size, color=color)
+        image.save(file_obj, ext)
+        file_obj.seek(0)
+        return File(file_obj, name=name)
+
     def test_load_user_img_file(self):
         text = 'Text 001'
         new_post = Post.objects.create(author=self.user_sarah,
                                        text=text, group=self.group)
         my_kwargs = {'username': self.sarah, 'post_id': new_post.id}
         url_post_edit = reverse('post_edit', kwargs=my_kwargs)
-        with open('posts/flamencodance_mc2018_2-3.jpg', 'rb') as img:
-            response = self.client.post(url_post_edit, {'text': text,
-                                        'image': img, 'group': self.group.id})
+        response = self.client.post(url_post_edit,
+                                    {'text': text,
+                                     'image': self.get_image_file(),
+                                     'group': self.group.id})
         list_to_check = self.get_list_of_urls_for_img(self.user_sarah,
                                                       text, self.group.slug)
         for url in list_to_check:
@@ -141,14 +155,22 @@ class TestStringMethods(TestCase):
             self.assertContains(response, '<img')
 
     def test_load_user_non_img_file(self):
-        with open('posts/non_img_file.mp3', 'rb') as img:
-            response = self.client.post(reverse('new_post'),
-                                        {'text': 'Text 002', 'image': img},
-                                        follow=True)
+        img = self.get_image_file(name='test.txt')
+        response = self.client.post(reverse('new_post'),
+                                    {'text': 'Text 002',
+                                     'image': img},
+                                    follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn('form', response.context)
-        form = response.context['form']
-        self.assertIn('image', form.errors)
+        my_error = "Формат файлов 'txt' не поддерживается. Поддерживаемые\
+                   форматы файлов: 'bmp, dib, gif, tif, tiff, jfif, jpe,\
+                   jpg, jpeg, pbm, pgm, ppm, pnm, png, apng, blp, bufr, \
+                   cur, pcx, dcx, dds, ps, eps, fit, fits, fli, flc, ftc,\
+                   ftu, gbr, grib, h5, hdf, jp2, j2k, jpc, jpf, jpx, j2c,\
+                   icns, ico, im, iim, mpg, mpeg, mpo, msp, palm, pcd, pdf,\
+                   pxr, psd, bw, rgb, rgba, sgi, ras, tga, icb, vda, vst, \
+                   webp, wmf, emf, xbm, xpm'."
+        self.assertFormError(response, 'form', 'image', my_error)
 
     def test_creating_comments(self):
         new_post = Post.objects.create(author=self.user_sarah,
@@ -163,19 +185,37 @@ class TestStringMethods(TestCase):
         self.assertIn('form', response.context)
         form = response.context['form']
         self.assertIsInstance(form, CommentForm)
-        obj_comment = get_object_or_404(Comment, post=new_post.id)
-        self.assertEqual(es_genial, obj_comment.text)
+        obj_comments = new_post.comments.all()
+        self.assertEqual(1, obj_comments.count())
+        self.assertEqual(es_genial, obj_comments[0].text)
+        self.assertEqual(self.user_sarah, obj_comments[0].author)
+        self.assertEqual(new_post, obj_comments[0].post)
         response = self.client.get(reverse('post',
                                    kwargs={'username': self.sarah,
                                            'post_id': new_post.id}))
         self.assertContains(response, es_genial)
+
+    def test_create_comment_by_unlogged_user(self):
+        new_post = Post.objects.create(author=self.user_sarah,
+                                       text='Un artículo popular',
+                                       group=self.group)
+        es_mal = 'No me he gustado!'
+        response = self.client_with_unlogged.post(
+                   reverse('add_comment', kwargs={'username': self.sarah,
+                                                  'post_id': new_post.id}),
+                   {'text': es_mal}, follow=True)
+        cnt = new_post.comments.all().count()
+        self.assertEqual(0, cnt)
+        response = self.client.get(reverse('post',
+                                   kwargs={'username': self.sarah,
+                                           'post_id': new_post.id}))
+        self.assertNotContains(response, es_mal)
 
     def test_cash(self):
         Post.objects.create(author=self.user_sarah,
                             text='1!')
         response = self.client.get(reverse('index'))
         self.assertContains(response,  '1!')
-        sleep(2)
         Post.objects.create(author=self.user_sarah,
                             text='2!')
         response = self.client.get(reverse('index'))
@@ -185,10 +225,6 @@ class TestStringMethods(TestCase):
         self.assertContains(response,  '2!')
 
     def test_follow(self):
-        Post.objects.create(author=self.user_olga,
-                            text='De Olga', group=self.group)
-        Post.objects.create(author=self.user_rick,
-                            text='De Rick', group=self.group)
         self.client.post(reverse('profile_follow',
                          kwargs={'username': self.user_olga.username}))
         self.client.post(reverse('profile_follow',
@@ -197,12 +233,29 @@ class TestStringMethods(TestCase):
         cnt_follower = self.user_sarah.following.count()
         self.assertEqual(2, cnt_following)
         self.assertEqual(0, cnt_follower)
+
+    def test_unfollow(self):
+        self.client.post(reverse('profile_follow',
+                         kwargs={'username': self.user_olga.username}))
+        self.client.post(reverse('profile_follow',
+                         kwargs={'username': self.user_rick.username}))
         self.client.post(reverse('profile_unfollow',
                          kwargs={'username': self.user_rick.username}))
         cnt_following = self.user_sarah.follower.count()
         self.assertEqual(1, cnt_following)
+        self.client.post(reverse('profile_unfollow',
+                         kwargs={'username': self.user_olga.username}))
+        cnt_following = self.user_sarah.follower.count()
+        self.assertEqual(0, cnt_following)
+
+    def test_follow_index(self):
+        Follow.objects.create(user=self.user_sarah, author=self.user_olga)
+        Post.objects.create(author=self.user_olga,
+                            text='De Olga', group=self.group)
         response = self.client.get(reverse('follow_index'))
         self.assertContains(response, 'De Olga')
+        Post.objects.create(author=self.user_rick,
+                            text='De Rick', group=self.group)
         self.assertNotContains(response, 'De Rick')
 
     def tearDown(self):

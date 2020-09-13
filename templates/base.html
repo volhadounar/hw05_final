@@ -9,13 +9,10 @@
     <link rel="stylesheet" href="{% static 'bootstrap/dist/css/bootstrap.min.css' %}">
     <script src="{% static 'jquery/dist/jquery.min.js' %}"></script>
     <script src="{% static 'bootstrap/dist/js/bootstrap.min.js' %}"></script>
-    {% if user.is_authenticated %}
-    <a href="{% url 'new_post' %}">Новая запись</a>
-    {% endif %}
 </head>
 
 <body>
-    {% include 'nav.html' %}
+    {% include 'include/nav.html' %}
     <main>
         <div class="container">
             <h1>{% block header %}The Last Social Media You'll Ever Need{% endblock %}</h1>
@@ -24,7 +21,7 @@
             {% endblock %}
         </div>
     </main>
-    {% include 'footer.html' %}
+    {% include 'include/footer.html' %}
 </body>
 
 </html>

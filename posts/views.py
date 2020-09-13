@@ -1,12 +1,14 @@
-from django.shortcuts import get_object_or_404, render
-from .models import Group, Post, Follow
-from . forms import PostForm, CommentForm
-from django.shortcuts import redirect
-from django.core.paginator import Paginator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, render
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.cache import cache_page
+
+from . forms import CommentForm, PostForm
+from . models import Follow, Group, Post
+
 
 User = get_user_model()
 
@@ -82,7 +84,7 @@ def post_view(request, username, post_id):
     comments = post.comments.all()
     return render(request, 'post.html', {'post': post,
                                          'count': cnt,
-                                         'post_user': post_user,
+                                         'post_user': post.author,
                                          'form': form,
                                          'comments': comments},
                   content_type='text/html', status=200)
@@ -95,15 +97,6 @@ def check_author(func):
                           'post_id': post_id})
             return redirect(url)
         return func(request, username, post_id)
-    return wrapper
-
-
-def check_follower(func):
-    def wrapper(request, username):
-        if request.user.get_username() == username:
-            url = reverse('profile', kwargs={'username': username})
-            return redirect(url)
-        return func(request, username)
     return wrapper
 
 
@@ -129,8 +122,6 @@ def post_edit(request, username, post_id):
 @login_required
 def add_comment(request, username, post_id):
     post = get_object_or_404(Post, pk=post_id, author__username=username)
-    if request.method != 'POST':
-        return redirect(post)
     form = CommentForm(request.POST or None)
     if not form.is_valid():
         return redirect(post)
@@ -151,9 +142,8 @@ def server_error(request):
 
 @login_required
 def follow_index(request):
-    follow_objs = request.user.follower.all()
-    authors = [item.author for item in follow_objs]
-    posts = Post.objects.filter(author__in=authors)
+    following_objs = request.user.follower.all()
+    posts = Post.objects.filter(author__following__in=following_objs)
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
@@ -162,18 +152,19 @@ def follow_index(request):
                   content_type='text/html', status=200)
 
 
-@check_follower
 @login_required
 def profile_follow(request, username):
-
+    if request.user.get_username() == username:
+        return redirect(reverse('profile', kwargs={'username': username}))
     author = get_object_or_404(User, username=username)
     Follow.objects.get_or_create(user=request.user, author=author)
     return redirect(reverse('profile', kwargs={'username': username}))
 
 
-@check_follower
 @login_required
 def profile_unfollow(request, username):
+    if request.user.get_username() == username:
+        return redirect(reverse('profile', kwargs={'username': username}))
     author = get_object_or_404(User, username=username)
-    Follow.objects.filter(user=request.user).filter(author=author).delete()
+    Follow.objects.filter(user=request.user, author=author).delete()
     return redirect(reverse('profile', kwargs={'username': username}))
