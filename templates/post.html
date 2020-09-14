@@ -6,7 +6,7 @@
 <main role="main" class="container">
     <div class="row">
             <div class="col-md-3 mb-3 mt-1">
-                {% include "author_item.html" with author=author follower_cnt=follower_cnt following_cnt=following_cnt count=paginator.count following=following %}
+                {% include "author_item.html" with author=post_user follower_cnt=follower_cnt following_cnt=following_cnt count=paginator.count following=following %}
         </div>
         {% include "post_item.html" with post=post %}
     </div>
