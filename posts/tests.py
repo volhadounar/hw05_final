@@ -35,7 +35,8 @@ class TestStringMethods(TestCase):
                                           description='Mucho gusto')
 
     def test_if_register(self):
-        response = self.client.post(f'/{self.sarah}/')
+        url = reverse('profile', kwargs={'username': self.sarah})
+        response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
 
     def check_param(self, url, args, user, my_text):
@@ -162,14 +163,14 @@ class TestStringMethods(TestCase):
                                     follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn('form', response.context)
-        my_error = "Формат файлов 'txt' не поддерживается. Поддерживаемые\
-                   форматы файлов: 'bmp, dib, gif, tif, tiff, jfif, jpe,\
-                   jpg, jpeg, pbm, pgm, ppm, pnm, png, apng, blp, bufr, \
-                   cur, pcx, dcx, dds, ps, eps, fit, fits, fli, flc, ftc,\
-                   ftu, gbr, grib, h5, hdf, jp2, j2k, jpc, jpf, jpx, j2c,\
-                   icns, ico, im, iim, mpg, mpeg, mpo, msp, palm, pcd, pdf,\
-                   pxr, psd, bw, rgb, rgba, sgi, ras, tga, icb, vda, vst, \
-                   webp, wmf, emf, xbm, xpm'."
+        my_error = "Формат файлов 'txt' не поддерживается. Поддерживаемые " \
+                   "форматы файлов: 'bmp, dib, gif, tif, tiff, jfif, jpe, " \
+                   "jpg, jpeg, pbm, pgm, ppm, pnm, png, apng, blp, bufr, "\
+                   "cur, pcx, dcx, dds, ps, eps, fit, fits, fli, flc, ftc, "\
+                   "ftu, gbr, grib, h5, hdf, jp2, j2k, jpc, jpf, jpx, j2c, "\
+                   "icns, ico, im, iim, mpg, mpeg, mpo, msp, palm, pcd, pdf, "\
+                   "pxr, psd, bw, rgb, rgba, sgi, ras, tga, icb, vda, vst, "\
+                   "webp, wmf, emf, xbm, xpm'."
         self.assertFormError(response, 'form', 'image', my_error)
 
     def test_creating_comments(self):

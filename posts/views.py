@@ -60,33 +60,39 @@ def profile(request, username):
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
-    cnt_following = post_user.follower.count()
-    cnt_follower = post_user.following.count()
     if request.user.is_authenticated:
         following = Follow.objects.filter(user=request.user).filter(
                     author=post_user).exists()
     else:
         following = True
-    return render(request, 'profile.html', {'page': page,
-                                            'paginator': paginator,
-                                            'author': post_user,
-                                            'follower_cnt': cnt_follower,
-                                            'following_cnt': cnt_following,
-                                            'following': following},
+    return render(request, 'profile.html',
+                  {'page': page,
+                   'paginator': paginator,
+                   'author': post_user,
+                   'follower_cnt': post_user.following.count(),
+                   'following_cnt': post_user.follower.count(),
+                   'following': following},
                   content_type='text/html', status=200)
 
 
 def post_view(request, username, post_id):
-    post_user = User.objects.get(username=username)
-    cnt = post_user.posts.all().count()
     post = get_object_or_404(Post, pk=post_id, author__username=username)
     form = CommentForm()
     comments = post.comments.all()
-    return render(request, 'post.html', {'post': post,
-                                         'count': cnt,
-                                         'post_user': post.author,
-                                         'form': form,
-                                         'comments': comments},
+    if request.user.is_authenticated:
+        following = Follow.objects.filter(user=request.user).filter(
+                    author=post.author).exists()
+    else:
+        following = True
+    return render(request, 'post.html',
+                  {'post': post,
+                   'count': post.author.posts.count(),
+                   'post_user': post.author,
+                   'form': form,
+                   'comments': comments,
+                   'follower_cnt': post.author.following.count(),
+                   'following_cnt': post.author.follower.count(),
+                   'following': following},
                   content_type='text/html', status=200)
 
 
@@ -142,8 +148,7 @@ def server_error(request):
 
 @login_required
 def follow_index(request):
-    following_objs = request.user.follower.all()
-    posts = Post.objects.filter(author__following__in=following_objs)
+    posts = Post.objects.filter(author__following__user=request.user)
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)

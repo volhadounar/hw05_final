@@ -6,29 +6,7 @@
 <main role="main" class="container">
     <div class="row">
             <div class="col-md-3 mb-3 mt-1">
-                <div class="card">
-                        <div class="card-body">
-                                <div class="h2">
-                                    {{ post_user.get_full_name }}
-                                </div>
-                                <div class="h3 text-muted">
-                                    {{ post_user.get_username }}
-                                </div>
-                        </div>
-                        <ul class="list-group list-group-flush">
-                                <li class="list-group-item">
-                                        <div class="h6 text-muted">
-                                        Подписчиков: XXX <br />
-                                        Подписан: XXX
-                                        </div>
-                                </li>
-                                <li class="list-group-item">
-                                        <div class="h6 text-muted">
-                                            Записей: {{ count }}
-                                        </div>
-                                </li>
-                        </ul>
-                </div>
+                {% include "author_item.html" with author=author follower_cnt=follower_cnt following_cnt=following_cnt count=paginator.count following=following %}
         </div>
         {% include "post_item.html" with post=post %}
     </div>
