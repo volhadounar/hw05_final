@@ -1,6 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Новая запись{% endblock %}
-{% block header %}Новый пост{% endblock %}
+{% block title %}
+{% if post.id == 0 %}
+Новая запись
+{% else %}
+Редактировать
+{% endif %}
+{% endblock %}
+{% block header %}
+{% if post.id == 0 %}
+Новый пост
+{% else %}
+Редактировать пост
+{% endif %}
+{% endblock %}
 {% block content %}
 
 <div class="row justify-content-center">
